@@ -1,0 +1,33 @@
+{
+    "name": "studioraz/magento2-{module-name}",
+    "description": "{description}",
+    "type": "magento2-module",
+    "prefer-stable": true,
+    "license": [
+        "MIT"
+    ],
+    "require": {
+        "php": ">=8.1",        
+        "magento/framework": ">=103",
+        "studioraz/magento2-base": "^1.0"
+    },
+    "autoload": {
+        "files": [
+            "src/registration.php"
+        ],
+        "psr-4": {
+            "SR\\{ModuleName}\\": "src"
+        }
+    },
+    "support": {
+        "email": "support@studioraz.co.il"
+    },
+    "authors": [
+        {
+            "name": "Studio Raz",
+            "email": "info@studioraz.co.il",
+            "homepage": "https://studioraz.co.il/",
+            "role": "Developer"
+        }
+    ]
+}
