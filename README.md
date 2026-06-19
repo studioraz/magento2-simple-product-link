@@ -21,10 +21,6 @@ A custom Magento 2 module that links independent simple products together and re
   - [Out-of-Stock Handling](#out-of-stock-handling)
   - [Sorting & Display Order](#sorting--display-order)
 - [Cache Invalidation](#cache-invalidation)
-- [Database Schema](#database-schema)
-- [Module Structure](#module-structure)
-- [Dependencies](#dependencies)
-- [Troubleshooting](#troubleshooting)
 - [License](#license)
 
 ---
