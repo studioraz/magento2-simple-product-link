@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <preference for="SR\SimpleProductLink\Api\Data\LinkRuleInterface"
+                type="SR\SimpleProductLink\Model\LinkRule"/>
+    <preference for="SR\SimpleProductLink\Api\LinkRuleRepositoryInterface"
+                type="SR\SimpleProductLink\Model\LinkRuleRepository"/>
+    <type name="Magento\Catalog\Model\Product\Action">
+        <plugin name="sr_simpleproductlink_product_action_group_cache_invalidator"
+                type="SR\SimpleProductLink\Plugin\Magento\Catalog\Model\ProductActionGroupCacheInvalidator"/>
+    </type>
+    <type name="Magento\CatalogInventory\Model\Indexer\Stock\CacheCleaner">
+        <plugin name="sr_simpleproductlink_stock_group_cache_invalidator"
+                type="SR\SimpleProductLink\Plugin\Magento\CatalogInventory\Model\Indexer\Stock\CacheCleanerGroupCacheInvalidator"/>
+    </type>
+    <type name="Magento\InventoryCache\Model\FlushCacheByProductIds">
+        <plugin name="sr_simpleproductlink_inventory_group_cache_invalidator"
+                type="SR\SimpleProductLink\Plugin\Magento\InventoryCache\Model\FlushCacheByProductIdsGroupCacheInvalidator"/>
+    </type>
+    <type name="Magento\Framework\View\Element\UiComponent\DataProvider\CollectionFactory">
+        <arguments>
+            <argument name="collections" xsi:type="array">
+                <item name="sr_simpleproductlink_linkrule_listing_data_source" xsi:type="string">SR\SimpleProductLink\Model\ResourceModel\LinkRule\Grid\Collection</item>
+            </argument>
+        </arguments>
+    </type>
+</config>

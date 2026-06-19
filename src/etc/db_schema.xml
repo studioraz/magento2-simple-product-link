@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="studioraz_simpleproductlink_rule" resource="default" engine="innodb"
+           comment="Simple Product Link Rules">
+        <column xsi:type="int" name="rule_id" unsigned="true" nullable="false" identity="true"
+                comment="Rule ID"/>
+        <column xsi:type="varchar" name="name" nullable="false" length="255"
+                comment="Rule Name"/>
+        <column xsi:type="text" name="description" nullable="true"
+                comment="Description"/>
+        <column xsi:type="smallint" name="is_active" unsigned="false" nullable="false" default="1"
+                comment="Is Active"/>
+        <column xsi:type="mediumtext" name="conditions_serialized" nullable="true"
+                comment="Conditions Serialized"/>
+        <column xsi:type="int" name="priority" unsigned="true" nullable="false" default="0"
+                comment="Priority (higher = evaluated first)"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false"
+                default="CURRENT_TIMESTAMP" comment="Created At"/>
+        <column xsi:type="timestamp" name="updated_at" on_update="true" nullable="false"
+                default="CURRENT_TIMESTAMP" comment="Updated At"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="rule_id"/>
+        </constraint>
+    </table>
+
+    <table name="studioraz_simpleproductlink_rule_variation_attribute" resource="default" engine="innodb"
+           comment="Simple Product Link Rule Variation Attributes">
+        <column xsi:type="int" name="id" unsigned="true" nullable="false" identity="true"
+                comment="ID"/>
+        <column xsi:type="int" name="rule_id" unsigned="true" nullable="false"
+                comment="Rule ID"/>
+        <column xsi:type="varchar" name="attribute_code" nullable="false" length="255"
+                comment="Attribute Code"/>
+        <column xsi:type="int" name="sort_order" unsigned="true" nullable="false" default="0"
+                comment="Sort Order"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="id"/>
+        </constraint>
+        <constraint xsi:type="foreign" referenceId="FK_SPL_RULE_VAR_ATTR_RULE_ID"
+                    table="studioraz_simpleproductlink_rule_variation_attribute"
+                    column="rule_id"
+                    referenceTable="studioraz_simpleproductlink_rule"
+                    referenceColumn="rule_id"
+                    onDelete="CASCADE"/>
+        <constraint xsi:type="unique" referenceId="UNQ_SPL_RULE_VAR_ATTR_RULE_ID_ATTR_CODE">
+            <column name="rule_id"/>
+            <column name="attribute_code"/>
+        </constraint>
+    </table>
+</schema>

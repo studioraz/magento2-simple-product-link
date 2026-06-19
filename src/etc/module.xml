@@ -1,13 +1,11 @@
 <?xml version="1.0"?>
-<!--
-/**
- * Copyright © 2025 Studio Raz. All rights reserved.
- * See LICENSE.txt for license details.
- */
--->
-<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
-    <module name="SR_{ModuleName}">
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
+    <module name="SR_SimpleProductLink">
         <sequence>
+            <module name="Magento_Catalog"/>
+            <module name="Magento_CatalogRule"/>
+            <module name="Magento_Swatches"/>
             <module name="SR_Base"/>
         </sequence>
     </module>

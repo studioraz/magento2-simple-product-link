@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <!-- 4.2: Group attribute change on product save -->
+    <event name="catalog_product_save_after">
+        <observer name="sr_simpleproductlink_invalidate_cache"
+                  instance="SR\SimpleProductLink\Observer\InvalidateCacheOnProductSave"/>
+    </event>
+    <!-- 4.1: Rule create/update/delete flushes FPC -->
+    <event name="studioraz_simpleproductlink_rule_save_after">
+        <observer name="sr_simpleproductlink_invalidate_fpc_on_rule_save"
+                  instance="SR\SimpleProductLink\Observer\InvalidateCacheOnRuleChange"/>
+    </event>
+    <event name="studioraz_simpleproductlink_rule_delete_after">
+        <observer name="sr_simpleproductlink_invalidate_fpc_on_rule_delete"
+                  instance="SR\SimpleProductLink\Observer\InvalidateCacheOnRuleChange"/>
+    </event>
+</config>

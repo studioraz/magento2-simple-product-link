@@ -1,33 +1,22 @@
 {
-    "name": "studioraz/magento2-{module-name}",
-    "description": "{description}",
+    "name": "studioraz/magent2-simple-product-link",
+    "description": "Links simple products together and renders their variations on the PDP",
     "type": "magento2-module",
-    "prefer-stable": true,
-    "license": [
-        "MIT"
-    ],
-    "require": {
-        "php": ">=8.1",        
-        "magento/framework": ">=103",
-        "studioraz/magento2-base": "^1.0"
-    },
+    "license": "MIT",
     "autoload": {
+        "psr-4": {
+            "SR\\SimpleProductLink\\": "src"
+        },
         "files": [
             "src/registration.php"
-        ],
-        "psr-4": {
-            "SR\\{ModuleName}\\": "src"
-        }
+        ]
     },
-    "support": {
-        "email": "support@studioraz.co.il"
-    },
-    "authors": [
-        {
-            "name": "Studio Raz",
-            "email": "info@studioraz.co.il",
-            "homepage": "https://studioraz.co.il/",
-            "role": "Developer"
-        }
-    ]
+    "require": {
+        "magento/module-catalog": "*",
+        "magento/module-catalog-rule": "*",
+        "magento/module-swatches": "*",
+        "magento/module-eav": "*",
+        "magento/module-rule": "*",
+        "studioraz/magento2-base": "*"
+    }
 }

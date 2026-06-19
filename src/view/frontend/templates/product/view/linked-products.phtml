@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+use Magento\Framework\Escaper;
+use Magento\Swatches\Model\Swatch;
+use Magento\Swatches\Helper\Media as SwatchMediaHelper;
+use SR\SimpleProductLink\Block\Product\View\LinkedProducts as LinkedProductsBlock;
+use SR\SimpleProductLink\ViewModel\LinkedProducts as LinkedProductsViewModel;
+
+/** @var LinkedProductsBlock $block */
+/** @var Escaper $escaper */
+
+/** @var LinkedProductsViewModel $viewModel */
+$viewModel = $block->getData('view_model');
+
+$swatchMediaHelper = $viewModel->getSwatchMediaHelper()
+    ?: \Magento\Framework\App\ObjectManager::getInstance()->get(SwatchMediaHelper::class);
+
+$product = $block->getProduct();
+if (!$product) {
+    return;
+}
+
+$linkData = $viewModel->getLinkedProductData($product);
+if (!$linkData) {
+    return;
+}
+?>
+
+<div class="mt-4">
+    <?php foreach ($linkData as $group): ?>
+        <?php
+        $options = $group['options'];
+        $attributeLabel = $escaper->escapeHtml($group['attribute_label']);
+        ?>
+        <div class="mb-4">
+            <p class="font-medium mb-1 text-base md:leading-6 lg:text-lg lg:leading-7">
+                <?= $attributeLabel ?>
+            </p>
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="<?= $attributeLabel ?>">
+                <?php foreach ($options as $option): ?>
+                    <?php
+                    $isCurrent  = $option['is_current'];
+                    $isSalable  = $option['is_salable'];
+                    $swatchType = (int)$option['swatch_type'];
+                    $swatchValue = $option['swatch_value'];
+                    $label    = $escaper->escapeHtml($option['label']);
+                    $url      = $escaper->escapeUrl($option['url']);
+                    $optionId = (int)$option['option_id'];
+
+                    $isColorSwatch    = $swatchType === Swatch::SWATCH_TYPE_VISUAL_COLOR;
+                    $isImageSwatch    = $swatchType === Swatch::SWATCH_TYPE_VISUAL_IMAGE;
+                    $isDropdownSwatch = $swatchType === LinkedProductsViewModel::SWATCH_TYPE_NONE;
+                    $isTextSwatch     = !$isColorSwatch && !$isImageSwatch && !$isDropdownSwatch;
+
+                    // Structured class groups for readability and single-point maintenance
+                    $classes = [
+                        'base'  => 'text-sm relative inline-flex items-center justify-center border rounded select-none transition-colors no-underline overflow-hidden',
+                        'size'  => $isTextSwatch ? 'px-2 py-1 h-8' : 'w-8 h-8',
+                        'type'  => match (true) {
+                            $isColorSwatch || $isImageSwatch => 'visual-swatch rounded-[50px]',
+                            $isDropdownSwatch                => 'dropdown w-[100px] h-auto',
+                            default                          => '',
+                        },
+                        'state' => match (true) {
+                            $isCurrent && $isTextSwatch  => 'border-primary ring-2 ring-primary/50 text-primary',
+                            $isCurrent                   => 'border-primary ring-2 ring-primary/50',
+                            !$isSalable                  => 'border-container-darker opacity-50 cursor-not-allowed',
+                            default                      => 'border-container-darker hover:border-primary cursor-pointer',
+                        },
+                    ];
+                    $classList = implode(' ', $classes);
+
+                    $swatchStyle = match (true) {
+                        $isColorSwatch                       => 'background-color:' . $swatchValue . ';',
+                        $isImageSwatch && (bool)$swatchValue => sprintf(
+                            'background-image:url(%s);background-size:cover;background-position:center;',
+                            $escaper->escapeUrl(
+                                $swatchMediaHelper->getSwatchAttributeImage(Swatch::SWATCH_IMAGE_NAME, $swatchValue)
+                            )
+                        ),
+                        default => '',
+                    };
+
+                    $productImage    = $escaper->escapeUrl($option['product_image'] ?? '');
+                    $titleText = !$isSalable
+                        ? $label . ' - ' . $escaper->escapeHtml(__('Out of Stock'))
+                        : $label;
+                    ?>
+
+                    <?php if ($isSalable && !$isCurrent): ?>
+                        <a href="<?= $url ?>"
+                           class="<?= $classList ?>"
+                           role="radio"
+                           aria-checked="false"
+                           aria-label="<?= $label ?>"
+                           title="<?= $titleText ?>"
+                           <?php if ($swatchStyle): ?>style="<?= $swatchStyle ?>"<?php endif; ?>
+                        >
+                            <?php if ($isDropdownSwatch && $productImage): ?>
+                                <img src="<?= $productImage ?>"
+                                     alt="<?= $label ?>"
+                                     class="w-full h-full object-cover pointer-events-none"
+                                     loading="lazy"
+                                />
+                            <?php elseif ($isTextSwatch): ?>
+                                <span class="pointer-events-none"><?= $label ?></span>
+                            <?php endif; ?>
+                        </a>
+                    <?php else: ?>
+                        <span class="<?= $classList ?>"
+                              role="radio"
+                              aria-checked="<?= $isCurrent ? 'true' : 'false' ?>"
+                              aria-label="<?= $label ?>"
+                              title="<?= $titleText ?>"
+                              <?php if ($swatchStyle): ?>style="<?= $swatchStyle ?>"<?php endif; ?>
+                        >
+                            <?php if ($isDropdownSwatch && $productImage): ?>
+                                <img src="<?= $productImage ?>"
+                                     alt="<?= $label ?>"
+                                     class="w-full h-full object-cover pointer-events-none"
+                                     loading="lazy"
+                                />
+                            <?php elseif ($isTextSwatch): ?>
+                                <span class="pointer-events-none"><?= $label ?></span>
+                            <?php endif; ?>
+
+                            <?php if (!$isSalable): ?>
+                                <svg class="absolute inset-0 w-full h-full text-gray-500" aria-hidden="true">
+                                    <line x1="0" y1="100%" x2="100%" y2="0" class="stroke-current stroke-1"></line>
+                                </svg>
+                            <?php endif; ?>
+                        </span>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    <?php endforeach; ?>
+</div>

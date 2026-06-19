@@ -1,0 +1,32 @@
+{
+    "studioraz_simpleproductlink_rule": {
+        "column": {
+            "rule_id": true,
+            "name": true,
+            "description": true,
+            "is_active": true,
+            "conditions_serialized": true,
+            "variation_attribute_code": true,
+            "sort_order": true,
+            "priority": true,
+            "created_at": true,
+            "updated_at": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        }
+    },
+    "studioraz_simpleproductlink_rule_variation_attribute": {
+        "column": {
+            "id": true,
+            "rule_id": true,
+            "attribute_code": true,
+            "sort_order": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "FK_SPL_RULE_VAR_ATTR_RULE_ID": true,
+            "UNQ_SPL_RULE_VAR_ATTR_RULE_ID_ATTR_CODE": true
+        }
+    }
+}
