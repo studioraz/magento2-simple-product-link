@@ -12,11 +12,8 @@
         ]
     },
     "require": {
-        "magento/module-catalog": "*",
-        "magento/module-catalog-rule": "*",
-        "magento/module-swatches": "*",
-        "magento/module-eav": "*",
-        "magento/module-rule": "*",
-        "studioraz/magento2-base": "*"
+        "php": ">=8.1",
+        "magento/framework": ">=103",
+        "studioraz/magento2-base": "^1.0"
     }
 }
