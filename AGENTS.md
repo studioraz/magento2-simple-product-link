@@ -9,15 +9,15 @@
 **Precedence:** the **closest `AGENTS.md`** to the files you're changing wins. Root holds global defaults only.
 
 ## Commands
-> No QA tooling defined in `composer.json`. Commands below are Magento CLI only.
+> No QA tooling defined in `composer.json`. Commands below use DDEV (`ddev magento` = `bin/magento` inside container).
 
 | Task | Command | ~Time |
 |------|---------|-------|
-| Enable module | `bin/magento module:enable SR_SimpleProductLink` | ~5s |
-| DI compile | `bin/magento setup:di:compile` | ~30s |
-| Run data patches | `bin/magento setup:upgrade` | ~15s |
-| Flush FPC | `bin/magento cache:flush full_page` | ~3s |
-| Flush all | `bin/magento cache:flush` | ~5s |
+| Enable module | `ddev magento module:enable SR_SimpleProductLink` | ~5s |
+| DI compile | `ddev magento setup:di:compile` | ~30s |
+| Run data patches | `ddev magento setup:upgrade` | ~15s |
+| Flush FPC | `ddev magento cache:flush full_page` | ~3s |
+| Flush all | `ddev magento cache:flush` | ~5s |
 
 ## File Map
 ```
