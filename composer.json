@@ -1,5 +1,5 @@
 {
-    "name": "studioraz/magent2-simple-product-link",
+    "name": "studioraz/magento2-simple-product-link",
     "description": "Links simple products together and renders their variations on the PDP",
     "type": "magento2-module",
     "license": "MIT",
