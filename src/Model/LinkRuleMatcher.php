@@ -20,7 +20,8 @@ class LinkRuleMatcher
      * Return the first matching active rule (ordered by priority DESC),
      * or null when no rule conditions are satisfied.
      *
-     * A rule with no conditions configured acts as a catch-all fallback.
+     * A rule with no conditions configured acts as a catch-all fallback
+     * only when all configured variation attributes are populated.
      */
     public function findForProduct(Product $product): ?LinkRule
     {
@@ -32,16 +33,50 @@ class LinkRuleMatcher
             /** @var LinkRule $rule */
             $rule->afterLoad();
 
-            if (!$rule->getConditions()->getConditions()) {
+            if (!$this->hasRequiredVariationValues($rule, $product)) {
+                continue;
+            }
+
+            $conditions = $rule->getConditions();
+            if (!$conditions->getConditions()) {
                 return $rule;
             }
 
-            if ($rule->getConditions()->validate($product)) {
+            if ($conditions->validate($product)) {
                 return $rule;
             }
         }
 
         return null;
     }
-}
 
+    private function hasRequiredVariationValues(LinkRule $rule, Product $product): bool
+    {
+        $variationAttributes = $rule->getVariationAttributeCodes();
+        if (empty($variationAttributes)) {
+            return false;
+        }
+
+        foreach ($variationAttributes as $attribute) {
+            $attributeCode = is_array($attribute) ? (string)($attribute['attribute_code'] ?? '') : (string)$attribute;
+            if ($attributeCode === '' || $this->isEmptySelectValue($product->getData($attributeCode))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isEmptySelectValue(mixed $value): bool
+    {
+        if (is_array($value)) {
+            return $value === [];
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        return empty($value);
+    }
+}

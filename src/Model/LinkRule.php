@@ -30,8 +30,8 @@ class LinkRule extends AbstractModel implements LinkRuleInterface
         TimezoneInterface $localeDate,
         CombineFactory $combineFactory,
         ActionCollectionFactory $actionCollectionFactory,
-        AbstractResource $resource = null,
-        AbstractDb $resourceCollection = null,
+        ?AbstractResource $resource = null,
+        ?AbstractDb $resourceCollection = null,
         array $data = []
     ) {
         $this->combineFactory = $combineFactory;
