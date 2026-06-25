@@ -6,6 +6,7 @@ namespace SR\SimpleProductLink\Model;
 
 use Magento\Catalog\Model\Product;
 use SR\SimpleProductLink\Model\ResourceModel\LinkRule\CollectionFactory as RuleCollectionFactory;
+use SR\SimpleProductLink\Model\VirtualAttribute\Pool;
 
 /**
  * Resolves the highest-priority active LinkRule that matches a given product.
@@ -14,6 +15,7 @@ class LinkRuleMatcher
 {
     public function __construct(
         private readonly RuleCollectionFactory $ruleCollectionFactory,
+        private readonly Pool $virtualAttributePool,
     ) {}
 
     /**
@@ -59,7 +61,16 @@ class LinkRuleMatcher
 
         foreach ($variationAttributes as $attribute) {
             $attributeCode = is_array($attribute) ? (string)($attribute['attribute_code'] ?? '') : (string)$attribute;
-            if ($attributeCode === '' || $this->isEmptySelectValue($product->getData($attributeCode))) {
+            if ($attributeCode === '') {
+                return false;
+            }
+
+            if ($this->virtualAttributePool->has($attributeCode)) {
+                $value = $this->virtualAttributePool->getByCode($attributeCode)->getValueForProduct($product);
+                if ($value === null || $value === '') {
+                    return false;
+                }
+            } elseif ($this->isEmptySelectValue($product->getData($attributeCode))) {
                 return false;
             }
         }

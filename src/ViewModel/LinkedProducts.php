@@ -21,6 +21,7 @@ use Magento\Swatches\Helper\Data as SwatchHelper;
 use Magento\Swatches\Helper\Media as SwatchMediaHelper;
 use Magento\Swatches\Model\Swatch;
 use SR\SimpleProductLink\Model\LinkRuleMatcher;
+use SR\SimpleProductLink\Model\VirtualAttribute\Pool;
 use SR\SimpleProductLink\Setup\Patch\Data\AddSimpleProductGroupAttribute;
 
 class LinkedProducts implements ArgumentInterface
@@ -39,6 +40,7 @@ class LinkedProducts implements ArgumentInterface
         private readonly ImageHelper $imageHelper,
         private readonly StoreManagerInterface $storeManager,
         private readonly Visibility $productVisibility,
+        private readonly Pool $virtualAttributePool,
     ) {}
 
     /**
@@ -95,6 +97,13 @@ class LinkedProducts implements ArgumentInterface
         bool $showOutOfStock,
         array $allAttributeCodes = []
     ): ?array {
+        // Delegate virtual attributes to dedicated builder
+        if ($this->virtualAttributePool->has($attributeCode)) {
+            $otherAttributeCodes = array_values(array_filter($allAttributeCodes, fn(string $c) => $c !== $attributeCode));
+            $candidates = $this->filterProductsByOtherAttributes($linkedProducts, $currentProduct, $otherAttributeCodes);
+            return $this->buildVirtualAttributeGroup($attributeCode, $currentProduct, $candidates, $showOutOfStock);
+        }
+
         $attribute = $this->eavConfig->getAttribute(Product::ENTITY, $attributeCode);
         if (!$attribute || !$attribute->getAttributeId()) {
             return null;
@@ -161,6 +170,72 @@ class LinkedProducts implements ArgumentInterface
     }
 
     /**
+     * Build an attribute group for a virtual attribute using the pool's value builder.
+     * Options are text-pill style (SWATCH_TYPE_NONE) with the computed string as label.
+     *
+     * @param Product[] $candidates Already filtered for other-axis alignment
+     */
+    private function buildVirtualAttributeGroup(
+        string $attributeCode,
+        Product $currentProduct,
+        array $candidates,
+        bool $showOutOfStock
+    ): ?array {
+        $virtualAttribute = $this->virtualAttributePool->getByCode($attributeCode);
+        if ($virtualAttribute === null) {
+            return null;
+        }
+
+        // Collect unique non-null values; index by value so we keep only the first product per value
+        $productsByValue = [];
+        foreach ($candidates as $candidate) {
+            $value = $virtualAttribute->getValueForProduct($candidate);
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if (!isset($productsByValue[$value])) {
+                $productsByValue[$value] = $candidate;
+            }
+        }
+
+        if (count($productsByValue) < 2) {
+            return null;
+        }
+
+        // Natural-sort the computed values so "3 kg" < "10 kg" < "20 kg"
+        uksort($productsByValue, 'strnatcasecmp');
+
+        $options = [];
+        foreach ($productsByValue as $value => $linkedProduct) {
+            $option = $this->buildOption(
+                0, // sentinel — virtual options have no real EAV option ID
+                $value,
+                $linkedProduct,
+                $currentProduct,
+                false, // virtual attributes are never swatch attributes
+                null,
+            );
+
+            if (!$option['is_salable'] && !$option['is_current'] && !$showOutOfStock) {
+                continue;
+            }
+
+            $options[] = $option;
+        }
+
+        if (count($options) < 2) {
+            return null;
+        }
+
+        return [
+            'attribute_label'    => $virtualAttribute->getFrontendLabel($currentProduct),
+            'attribute_code'     => $attributeCode,
+            'current_product_id' => (int)$currentProduct->getId(),
+            'options'            => $options,
+        ];
+    }
+
+    /**
      * Build a single swatch option array for the given linked product.
      *
      * @param array<string,mixed>|null $swatch Raw swatch row from SwatchHelper, or null
@@ -219,12 +294,39 @@ class LinkedProducts implements ArgumentInterface
 
         return array_values(array_filter($products, function (Product $product) use ($currentProduct, $otherAttributeCodes): bool {
             foreach ($otherAttributeCodes as $code) {
-                if ($product->getData($code) !== $currentProduct->getData($code)) {
+                if ($this->virtualAttributePool->has($code)) {
+                    $virtual = $this->virtualAttributePool->getByCode($code);
+                    if ($virtual->getValueForProduct($product) !== $virtual->getValueForProduct($currentProduct)) {
+                        return false;
+                    }
+                } elseif ($product->getData($code) !== $currentProduct->getData($code)) {
                     return false;
                 }
             }
             return true;
         }));
+    }
+
+    /**
+     * Build the list of EAV attribute codes to load on the product collection.
+     * Virtual attribute codes are replaced by their declared EAV dependencies.
+     *
+     * @param  string[] $variationAttributeCodes
+     * @return string[]
+     */
+    private function resolveSelectCodes(array $variationAttributeCodes): array
+    {
+        $selectCodes = [];
+        foreach ($variationAttributeCodes as $code) {
+            if ($this->virtualAttributePool->has($code)) {
+                foreach ($this->virtualAttributePool->getByCode($code)->getDependsOnAttributeCodes() as $dep) {
+                    $selectCodes[] = $dep;
+                }
+            } else {
+                $selectCodes[] = $code;
+            }
+        }
+        return array_unique($selectCodes);
     }
 
     /**
@@ -234,6 +336,7 @@ class LinkedProducts implements ArgumentInterface
     private function getGroupProducts(string $groupValue, array $variationAttributeCodes): array
     {
         $store = $this->storeManager->getStore();
+        $selectCodes = $this->resolveSelectCodes($variationAttributeCodes);
 
         /** @var \Magento\Catalog\Model\ResourceModel\Product\Collection $collection */
         $collection = $this->productCollectionFactory->create();
@@ -242,7 +345,7 @@ class LinkedProducts implements ArgumentInterface
             ->addStoreFilter($store)
             ->addWebsiteFilter((int)$store->getWebsiteId())
             ->setVisibility($this->productVisibility->getVisibleInCatalogIds())
-            ->addAttributeToSelect(array_merge(['name', 'url_key', 'thumbnail'], $variationAttributeCodes))
+            ->addAttributeToSelect(array_merge(['name', 'url_key', 'thumbnail'], $selectCodes))
             ->addAttributeToFilter(AddSimpleProductGroupAttribute::ATTRIBUTE_CODE, $groupValue)
             ->addAttributeToFilter('status', Status::STATUS_ENABLED)
             ->addAttributeToFilter('type_id', 'simple')

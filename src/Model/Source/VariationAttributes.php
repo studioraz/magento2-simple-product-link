@@ -7,17 +7,16 @@ namespace SR\SimpleProductLink\Model\Source;
 use Magento\Catalog\Model\Product;
 use Magento\Eav\Model\Config as EavConfig;
 use Magento\Framework\Data\OptionSourceInterface;
+use SR\SimpleProductLink\Model\VirtualAttribute\Pool;
 
 class VariationAttributes implements OptionSourceInterface
 {
-    private EavConfig $eavConfig;
-
     private const array ALLOWED_INPUT_TYPES = ['select'];
 
-    public function __construct(EavConfig $eavConfig)
-    {
-        $this->eavConfig = $eavConfig;
-    }
+    public function __construct(
+        private readonly EavConfig $eavConfig,
+        private readonly Pool $virtualAttributePool,
+    ) {}
 
     public function toOptionArray(): array
     {
@@ -38,6 +37,13 @@ class VariationAttributes implements OptionSourceInterface
         }
 
         usort($options, fn($a, $b) => strcmp((string)$a['label'], (string)$b['label']));
+
+        foreach ($this->virtualAttributePool->getAll() as $virtualAttribute) {
+            $options[] = [
+                'value' => $virtualAttribute->getAttributeCode(),
+                'label' => $virtualAttribute->getAdminLabel(),
+            ];
+        }
 
         return $options;
     }
