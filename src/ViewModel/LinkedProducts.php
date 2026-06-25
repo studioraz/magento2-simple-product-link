@@ -208,12 +208,12 @@ class LinkedProducts implements ArgumentInterface
         $options = [];
         foreach ($productsByValue as $value => $linkedProduct) {
             $option = $this->buildOption(
-                0, // sentinel — virtual options have no real EAV option ID
+                0,    // sentinel — virtual options have no real EAV option ID
                 $value,
                 $linkedProduct,
                 $currentProduct,
-                false, // virtual attributes are never swatch attributes
-                null,
+                true, // treat as textual swatch so the template renders a text pill, not a thumbnail
+                null, // no swatch row → falls through to SWATCH_TYPE_TEXTUAL
             );
 
             if (!$option['is_salable'] && !$option['is_current'] && !$showOutOfStock) {
