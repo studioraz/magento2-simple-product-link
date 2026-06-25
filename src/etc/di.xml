@@ -5,6 +5,12 @@
                 type="SR\SimpleProductLink\Model\LinkRule"/>
     <preference for="SR\SimpleProductLink\Api\LinkRuleRepositoryInterface"
                 type="SR\SimpleProductLink\Model\LinkRuleRepository"/>
+    <!-- Pool is empty by default; third-party modules add items via their own di.xml -->
+    <type name="SR\SimpleProductLink\Model\VirtualAttribute\Pool">
+        <arguments>
+            <argument name="attributes" xsi:type="array"/>
+        </arguments>
+    </type>
     <type name="Magento\Catalog\Model\Product\Action">
         <plugin name="sr_simpleproductlink_product_action_group_cache_invalidator"
                 type="SR\SimpleProductLink\Plugin\Magento\Catalog\Model\ProductActionGroupCacheInvalidator"/>
@@ -25,3 +31,4 @@
         </arguments>
     </type>
 </config>
+

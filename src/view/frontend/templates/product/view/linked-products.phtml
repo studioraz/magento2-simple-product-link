@@ -33,10 +33,18 @@ if (!$linkData) {
         <?php
         $options = $group['options'];
         $attributeLabel = $escaper->escapeHtml($group['attribute_label']);
+        $currentOptionLabel = '';
+        foreach ($options as $opt) {
+            if ($opt['is_current']) {
+                $currentOptionLabel = $escaper->escapeHtml($opt['label']);
+                break;
+            }
+        }
         ?>
         <div class="mb-4">
             <p class="font-medium mb-1 text-base md:leading-6 lg:text-lg lg:leading-7">
-                <?= $attributeLabel ?>
+                <?= $attributeLabel ?>:
+                <span class="font-normal"><?= $currentOptionLabel ?></span>
             </p>
             <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="<?= $attributeLabel ?>">
                 <?php foreach ($options as $option): ?>
