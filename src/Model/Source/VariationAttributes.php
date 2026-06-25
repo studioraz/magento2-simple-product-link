@@ -41,7 +41,11 @@ class VariationAttributes implements OptionSourceInterface
         foreach ($this->virtualAttributePool->getAll() as $virtualAttribute) {
             $options[] = [
                 'value' => $virtualAttribute->getAttributeCode(),
-                'label' => $virtualAttribute->getAdminLabel(),
+                'label' => sprintf(
+                    '%s (%s, [virtual])',
+                    $virtualAttribute->getAdminLabel(),
+                    $virtualAttribute->getAttributeCode()
+                ),
             ];
         }
 

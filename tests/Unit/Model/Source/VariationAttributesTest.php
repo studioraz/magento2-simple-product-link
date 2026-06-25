@@ -77,7 +77,7 @@ class VariationAttributesTest extends TestCase
 
         $labelEntry = array_filter($options, fn($o) => $o['value'] === 'sr_baseprice_amount_unit');
         $labelEntry = array_values($labelEntry);
-        $this->assertSame('Product Amount and Unit', $labelEntry[0]['label']);
+        $this->assertSame('Product Amount and Unit (sr_baseprice_amount_unit, [virtual])', $labelEntry[0]['label']);
     }
 
     public function testVirtualAttributesAreAppendedAfterEavAttributes(): void
