@@ -101,6 +101,12 @@ class LinkedProducts implements ArgumentInterface
         if ($this->virtualAttributePool->has($attributeCode)) {
             $otherAttributeCodes = array_values(array_filter($allAttributeCodes, fn(string $c) => $c !== $attributeCode));
             $candidates = $this->filterProductsByOtherAttributes($linkedProducts, $currentProduct, $otherAttributeCodes);
+            // Soft fallback: if cross-axis filtering leaves too few candidates (unique-combo product
+            // sets where no other product shares the current product's value on every other axis),
+            // fall back to the full group so all virtual options can still be displayed.
+            if (count($candidates) < 2) {
+                $candidates = $linkedProducts;
+            }
             return $this->buildVirtualAttributeGroup($attributeCode, $currentProduct, $candidates, $showOutOfStock);
         }
 
@@ -113,19 +119,32 @@ class LinkedProducts implements ArgumentInterface
         // values for every OTHER variation attribute. This ensures, e.g., Storage options on a
         // White product page always link to White products — not to whichever color happens to
         // have the lowest entity_id.
+        // Soft fallback: if the cross-axis filter leaves fewer than 2 candidates (e.g. unique-combo
+        // product sets), use the full linked product list so options are still displayed.
         $otherAttributeCodes = array_values(array_filter($allAttributeCodes, fn(string $c) => $c !== $attributeCode));
         $candidates = $this->filterProductsByOtherAttributes($linkedProducts, $currentProduct, $otherAttributeCodes);
+        if (count($candidates) < 2) {
+            $candidates = $linkedProducts;
+        }
 
-        // Single pass: collect option IDs and index products by option ID simultaneously
+        // Single pass: collect option IDs and index products by option ID.
+        // If the current product shares an option value with another product, prefer the
+        // current product so that `is_current` resolves correctly for that option.
         $optionIds          = [];
         $productsByOptionId = [];
         foreach ($candidates as $linkedProduct) {
             $optionId = (int)$linkedProduct->getData($attributeCode);
-            if (!$optionId || isset($productsByOptionId[$optionId])) {
+            if (!$optionId) {
                 continue;
             }
-            $optionIds[]                   = $optionId;
-            $productsByOptionId[$optionId] = $linkedProduct;
+            $isCurrentProduct = (int)$linkedProduct->getId() === (int)$currentProduct->getId();
+            if (!isset($productsByOptionId[$optionId])) {
+                $optionIds[]                   = $optionId;
+                $productsByOptionId[$optionId] = $linkedProduct;
+            } elseif ($isCurrentProduct) {
+                // Current product wins: overwrite whichever product was first for this option
+                $productsByOptionId[$optionId] = $linkedProduct;
+            }
         }
 
         $isSwatchAttribute  = $attribute instanceof CatalogEavAttribute
