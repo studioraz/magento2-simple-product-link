@@ -1,10 +1,10 @@
 <!-- FOR AI AGENTS - Human readability is a side effect, not a goal -->
 <!-- Managed by agent: keep sections and order; edit content, not structure -->
-<!-- Last updated: 2026-06-22 | Last verified: 2026-06-22 -->
+<!-- Last updated: 2026-07-30 | Last verified: 2026-07-30 -->
 
-# AGENTS.md — SR_SimpleProductLink
+# AGENTS.md — SR_SimpleProductLink package
 
-> Magento 2 module · namespace `SR\SimpleProductLink` · PHP ≥8.1 · Hyva theme (Tailwind + Alpine.js)
+> Magento 2 package · modules `SR_SimpleProductLink` + `SR_SimpleProductLinkLuma` · PHP ≥8.1 · Hyvä and Luma
 
 **Precedence:** the **closest `AGENTS.md`** to the files you're changing wins. Root holds global defaults only.
 
@@ -13,7 +13,7 @@
 
 | Task | Command | ~Time |
 |------|---------|-------|
-| Enable module | `ddev magento module:enable SR_SimpleProductLink` | ~5s |
+| Enable modules | `ddev magento module:enable SR_SimpleProductLink SR_SimpleProductLinkLuma` | ~5s |
 | DI compile | `ddev magento setup:di:compile` | ~30s |
 | Run data patches | `ddev magento setup:upgrade` | ~15s |
 | Flush FPC | `ddev magento cache:flush full_page` | ~3s |
@@ -21,41 +21,45 @@
 
 ## File Map
 ```
-src/registration.php                                      → module registration (required)
-src/etc/module.xml                                        → module declaration + sequence
-src/etc/di.xml                                            → plugin/preference/type wiring
-src/etc/events.xml                                        → observed events (rule save/delete, product save)
-src/etc/db_schema.xml                                     → DB tables: studioraz_simpleproductlink_rule + _variation_attribute
-src/Api/                                                  → LinkRuleInterface + LinkRuleRepositoryInterface (public API)
-src/Model/LinkRule.php                                    → entity model
-src/Model/LinkRuleMatcher.php                             → finds highest-priority active rule for a product
-src/Model/LinkRuleRepository.php                          → CRUD for LinkRule
-src/Model/Cache/GroupCacheCleaner.php                     → dispatches clean_cache_by_tags for a set of group values
-src/Model/Cache/GroupCacheTag.php                         → generates cache tags from group values
-src/Model/Product/GroupValuesResolver.php                 → resolves group attribute values from product collection
-src/Observer/InvalidateCacheOnRuleChange.php              → flushes full_page cache on rule save/delete
-src/Observer/InvalidateCacheOnProductSave.php             → invalidates sibling product cache on group value change
-src/Plugin/                                               → intercepts ProductAction + stock indexer to invalidate group cache
-src/Setup/Patch/Data/AddSimpleProductGroupAttribute.php   → creates simple_product_group product attribute on install
-src/Controller/Adminhtml/LinkRule/                        → admin CRUD controllers (Index/New/Edit/Save/Delete/MassDelete)
-src/Ui/Component/DataProvider/LinkRuleDataProvider.php    → grid data provider
-src/Block/Product/View/LinkedProducts.php                 → frontend block injecting ViewModel into layout
-src/ViewModel/LinkedProducts.php                          → builds swatch+link data for PDP variant switcher
-src/view/frontend/templates/product/view/linked-products.phtml → Hyva template (Tailwind + Alpine.js)
-src/view/adminhtml/ui_component/                          → admin form + grid UI component XML
+src/SimpleProductLink/registration.php                                      → core/Hyvä module registration
+src/SimpleProductLink/etc/module.xml                                        → core module declaration + sequence
+src/SimpleProductLink/etc/di.xml                                            → plugin/preference/type wiring
+src/SimpleProductLink/etc/events.xml                                        → observed events (rule save/delete, product save)
+src/SimpleProductLink/etc/db_schema.xml                                     → DB tables: studioraz_simpleproductlink_rule + _variation_attribute
+src/SimpleProductLink/Api/                                                  → LinkRuleInterface + LinkRuleRepositoryInterface (public API)
+src/SimpleProductLink/Model/LinkRule.php                                    → entity model
+src/SimpleProductLink/Model/LinkRuleMatcher.php                             → finds highest-priority active rule for a product
+src/SimpleProductLink/Model/LinkRuleRepository.php                          → CRUD for LinkRule
+src/SimpleProductLink/Model/Cache/GroupCacheCleaner.php                     → dispatches clean_cache_by_tags for a set of group values
+src/SimpleProductLink/Model/Cache/GroupCacheTag.php                         → generates cache tags from group values
+src/SimpleProductLink/Model/Product/GroupValuesResolver.php                 → resolves group attribute values from product collection
+src/SimpleProductLink/Observer/InvalidateCacheOnRuleChange.php              → flushes full_page cache on rule save/delete
+src/SimpleProductLink/Observer/InvalidateCacheOnProductSave.php             → invalidates sibling product cache on group value change
+src/SimpleProductLink/Plugin/                                               → intercepts ProductAction + stock indexer to invalidate group cache
+src/SimpleProductLink/Setup/Patch/Data/AddSimpleProductGroupAttribute.php   → creates simple_product_group product attribute on install
+src/SimpleProductLink/Controller/Adminhtml/LinkRule/                        → admin CRUD controllers
+src/SimpleProductLink/Ui/Component/DataProvider/LinkRuleDataProvider.php    → grid data provider
+src/SimpleProductLink/Block/Product/View/LinkedProducts.php                 → shared frontend block
+src/SimpleProductLink/ViewModel/LinkedProducts.php                          → shared PDP variation data
+src/SimpleProductLink/view/frontend/                                        → original Hyvä layout + Tailwind template
+src/SimpleProductLink/view/adminhtml/ui_component/                          → admin form + grid UI component XML
+src/SimpleProductLinkLuma/registration.php                                  → Luma module registration
+src/SimpleProductLinkLuma/etc/module.xml                                    → depends on SR_SimpleProductLink
+src/SimpleProductLinkLuma/view/frontend/                                    → Luma layout, template, and LESS
 ```
 
 ## Golden Samples
 
 | For | Reference | Key pattern |
 |-----|-----------|-------------|
-| Observer (FPC flush) | `src/Observer/InvalidateCacheOnRuleChange.php` | Implement `ObserverInterface`; call `TypeListInterface::cleanType('full_page')` |
-| Group cache invalidation | `src/Model/Cache/GroupCacheCleaner.php` | Dispatch `clean_cache_by_tags` via `CacheContextFactory` + `EventManager` |
-| Rule matching | `src/Model/LinkRuleMatcher.php` | Iterate collection ordered by `priority DESC`; first matching conditions wins |
-| Data patch | `src/Setup/Patch/Data/AddSimpleProductGroupAttribute.php` | Implement `DataPatchInterface`; idempotent attribute creation |
-| Admin controller | `src/Controller/Adminhtml/LinkRule/Save.php` | ACL check, form validation, redirect to edit on error |
-| View model | `src/ViewModel/LinkedProducts.php` | Implement `ArgumentInterface`; pure data assembly — no rendering |
-| Phtml template | `src/view/frontend/templates/product/view/linked-products.phtml` | Use `$block->getViewModel()`; Tailwind classes; Alpine.js `x-data` |
+| Observer (FPC flush) | `src/SimpleProductLink/Observer/InvalidateCacheOnRuleChange.php` | Implement `ObserverInterface`; call `TypeListInterface::cleanType('full_page')` |
+| Group cache invalidation | `src/SimpleProductLink/Model/Cache/GroupCacheCleaner.php` | Dispatch `clean_cache_by_tags` via `CacheContextFactory` + `EventManager` |
+| Rule matching | `src/SimpleProductLink/Model/LinkRuleMatcher.php` | Iterate collection ordered by `priority DESC`; first matching conditions wins |
+| Data patch | `src/SimpleProductLink/Setup/Patch/Data/AddSimpleProductGroupAttribute.php` | Implement `DataPatchInterface`; idempotent attribute creation |
+| Admin controller | `src/SimpleProductLink/Controller/Adminhtml/LinkRule/Save.php` | ACL check, form validation, redirect to edit on error |
+| View model | `src/SimpleProductLink/ViewModel/LinkedProducts.php` | Implement `ArgumentInterface`; shared data assembly |
+| Hyvä template | `src/SimpleProductLink/view/frontend/templates/product/view/linked-products.phtml` | Preserve the original Tailwind implementation |
+| Luma template | `src/SimpleProductLinkLuma/view/frontend/templates/product/view/linked-products.phtml` | BEM classes styled by module LESS |
 
 ## Terminology
 
@@ -84,16 +88,20 @@ src/view/adminhtml/ui_component/                          → admin form + grid 
 - No test suite configured — no PHPUnit or PHPStan in `composer.json`; add before introducing any
 - Two DB tables: `studioraz_simpleproductlink_rule` (rules) + `studioraz_simpleproductlink_rule_variation_attribute` (FK → rule)
 - `variation_attribute` rows have a `sort_order` column — always preserve ordering when saving
-- No frontend JS bundle — Alpine.js and Tailwind come entirely from Hyva theme
+- No frontend JS bundle
+- Hyvä presentation belongs to `SR_SimpleProductLink`; Luma presentation belongs to `SR_SimpleProductLinkLuma`
+- Both Magento modules are registered by the same Composer package
 
 ## Boundaries
 
 ### Always Do
-- Namespace: `SR\SimpleProductLink` (PSR-4, maps to `src/`)
+- Namespace `SR\SimpleProductLink` maps to `src/SimpleProductLink/`
+- Namespace `SR\SimpleProductLinkLuma` maps to `src/SimpleProductLinkLuma/`
 - PHP 8.1+ syntax: constructor promotion, `readonly`, `match`, named args, union types
 - Keep all data assembly in ViewModels; Blocks only wire the ViewModel into layout
 - Attach cache tags via `GroupCacheTag` for any new product-display feature
-- Declare new plugins/observers/preferences in `src/etc/di.xml` or `src/etc/events.xml`
+- Declare core plugins/observers/preferences in `src/SimpleProductLink/etc/di.xml` or `events.xml`
+- Keep Luma-specific layout, templates, and LESS inside `src/SimpleProductLinkLuma/view/frontend/`
 
 ### Ask First
 - Adding Composer dependencies (none in `require-dev` yet — pick tooling carefully)

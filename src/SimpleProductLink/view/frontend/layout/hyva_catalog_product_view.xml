@@ -2,6 +2,8 @@
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <body>
+        <referenceBlock name="product.linked.variants.luma" remove="true"/>
+
         <referenceBlock name="product.info.form">
             <block class="SR\SimpleProductLink\Block\Product\View\LinkedProducts"
                    name="product.linked.variants2"

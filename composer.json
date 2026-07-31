@@ -5,10 +5,12 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "SR\\SimpleProductLink\\": "src"
+            "SR\\SimpleProductLink\\": "src/SimpleProductLink",
+            "SR\\SimpleProductLinkLuma\\": "src/SimpleProductLinkLuma"
         },
         "files": [
-            "src/registration.php"
+            "src/SimpleProductLink/registration.php",
+            "src/SimpleProductLinkLuma/registration.php"
         ]
     },
     "autoload-dev": {
@@ -25,4 +27,3 @@
         "phpunit/phpunit": "^11.0"
     }
 }
-

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Magento\Framework\Escaper;
 use Magento\Swatches\Model\Swatch;
-use Magento\Swatches\Helper\Media as SwatchMediaHelper;
 use SR\SimpleProductLink\Block\Product\View\LinkedProducts as LinkedProductsBlock;
 use SR\SimpleProductLink\ViewModel\LinkedProducts as LinkedProductsViewModel;
 
@@ -13,9 +12,7 @@ use SR\SimpleProductLink\ViewModel\LinkedProducts as LinkedProductsViewModel;
 
 /** @var LinkedProductsViewModel $viewModel */
 $viewModel = $block->getData('view_model');
-
-$swatchMediaHelper = $viewModel->getSwatchMediaHelper()
-    ?: \Magento\Framework\App\ObjectManager::getInstance()->get(SwatchMediaHelper::class);
+$swatchMediaHelper = $viewModel->getSwatchMediaHelper();
 
 $product = $block->getProduct();
 if (!$product) {
@@ -28,60 +25,57 @@ if (!$linkData) {
 }
 ?>
 
-<div class="mt-4">
+<div class="sr-simple-product-link">
     <?php foreach ($linkData as $group): ?>
         <?php
         $options = $group['options'];
         $attributeLabel = $escaper->escapeHtml($group['attribute_label']);
         $currentOptionLabel = '';
-        foreach ($options as $opt) {
-            if ($opt['is_current']) {
-                $currentOptionLabel = $escaper->escapeHtml($opt['label']);
+        foreach ($options as $option) {
+            if ($option['is_current']) {
+                $currentOptionLabel = $escaper->escapeHtml($option['label']);
                 break;
             }
         }
         ?>
-        <div class="mb-4">
-            <p class="font-medium mb-1 text-base md:leading-6 lg:text-lg lg:leading-7">
+        <div class="sr-simple-product-link__group">
+            <p class="sr-simple-product-link__label">
                 <?= $attributeLabel ?>:
-                <span class="font-normal"><?= $currentOptionLabel ?></span>
+                <span class="sr-simple-product-link__selected"><?= $currentOptionLabel ?></span>
             </p>
-            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="<?= $attributeLabel ?>">
+            <div class="sr-simple-product-link__options"
+                 role="radiogroup"
+                 aria-label="<?= $attributeLabel ?>">
                 <?php foreach ($options as $option): ?>
                     <?php
-                    $isCurrent  = $option['is_current'];
-                    $isSalable  = $option['is_salable'];
+                    $isCurrent = $option['is_current'];
+                    $isSalable = $option['is_salable'];
                     $swatchType = (int)$option['swatch_type'];
                     $swatchValue = $option['swatch_value'];
-                    $label    = $escaper->escapeHtml($option['label']);
-                    $url      = $escaper->escapeUrl($option['url']);
-                    $optionId = (int)$option['option_id'];
+                    $label = $escaper->escapeHtml($option['label']);
+                    $url = $escaper->escapeUrl($option['url']);
 
-                    $isColorSwatch    = $swatchType === Swatch::SWATCH_TYPE_VISUAL_COLOR;
-                    $isImageSwatch    = $swatchType === Swatch::SWATCH_TYPE_VISUAL_IMAGE;
+                    $isColorSwatch = $swatchType === Swatch::SWATCH_TYPE_VISUAL_COLOR;
+                    $isImageSwatch = $swatchType === Swatch::SWATCH_TYPE_VISUAL_IMAGE;
                     $isDropdownSwatch = $swatchType === LinkedProductsViewModel::SWATCH_TYPE_NONE;
-                    $isTextSwatch     = !$isColorSwatch && !$isImageSwatch && !$isDropdownSwatch;
 
-                    // Structured class groups for readability and single-point maintenance
                     $classes = [
-                        'base'  => 'text-sm relative inline-flex items-center justify-center border rounded select-none transition-colors no-underline overflow-hidden',
-                        'size'  => $isTextSwatch ? 'px-2 py-1 h-8' : 'w-8 h-8',
-                        'type'  => match (true) {
-                            $isColorSwatch || $isImageSwatch => 'visual-swatch rounded-[50px]',
-                            $isDropdownSwatch                => 'dropdown w-[100px] h-auto',
-                            default                          => '',
+                        'base' => 'sr-simple-product-link__option',
+                        'type' => match (true) {
+                            $isColorSwatch || $isImageSwatch => 'sr-simple-product-link__option--visual',
+                            $isDropdownSwatch => 'sr-simple-product-link__option--dropdown',
+                            default => 'sr-simple-product-link__option--text',
                         },
                         'state' => match (true) {
-                            $isCurrent && $isTextSwatch  => 'border-primary ring-2 ring-primary/50 text-primary',
-                            $isCurrent                   => 'border-primary ring-2 ring-primary/50',
-                            !$isSalable                  => 'border-container-darker opacity-50 cursor-not-allowed',
-                            default                      => 'border-container-darker hover:border-primary cursor-pointer',
+                            $isCurrent => 'sr-simple-product-link__option--current',
+                            !$isSalable => 'sr-simple-product-link__option--disabled',
+                            default => 'sr-simple-product-link__option--available',
                         },
                     ];
                     $classList = implode(' ', $classes);
 
                     $swatchStyle = match (true) {
-                        $isColorSwatch                       => 'background-color:' . $swatchValue . ';',
+                        $isColorSwatch => 'background-color:' . $swatchValue . ';',
                         $isImageSwatch && (bool)$swatchValue => sprintf(
                             'background-image:url(%s);background-size:cover;background-position:center;',
                             $escaper->escapeUrl(
@@ -91,7 +85,7 @@ if (!$linkData) {
                         default => '',
                     };
 
-                    $productImage    = $escaper->escapeUrl($option['product_image'] ?? '');
+                    $productImage = $escaper->escapeUrl($option['product_image'] ?? '');
                     $titleText = !$isSalable
                         ? $label . ' - ' . $escaper->escapeHtml(__('Out of Stock'))
                         : $label;
@@ -109,11 +103,11 @@ if (!$linkData) {
                             <?php if ($isDropdownSwatch && $productImage): ?>
                                 <img src="<?= $productImage ?>"
                                      alt="<?= $label ?>"
-                                     class="w-full h-full object-cover pointer-events-none"
+                                     class="sr-simple-product-link__image"
                                      loading="lazy"
                                 />
-                            <?php elseif ($isTextSwatch): ?>
-                                <span class="pointer-events-none"><?= $label ?></span>
+                            <?php elseif (!$isColorSwatch && !$isImageSwatch): ?>
+                                <span class="sr-simple-product-link__text"><?= $label ?></span>
                             <?php endif; ?>
                         </a>
                     <?php else: ?>
@@ -127,16 +121,21 @@ if (!$linkData) {
                             <?php if ($isDropdownSwatch && $productImage): ?>
                                 <img src="<?= $productImage ?>"
                                      alt="<?= $label ?>"
-                                     class="w-full h-full object-cover pointer-events-none"
+                                     class="sr-simple-product-link__image"
                                      loading="lazy"
                                 />
-                            <?php elseif ($isTextSwatch): ?>
-                                <span class="pointer-events-none"><?= $label ?></span>
+                            <?php elseif (!$isColorSwatch && !$isImageSwatch): ?>
+                                <span class="sr-simple-product-link__text"><?= $label ?></span>
                             <?php endif; ?>
 
                             <?php if (!$isSalable): ?>
-                                <svg class="absolute inset-0 w-full h-full text-gray-500" aria-hidden="true">
-                                    <line x1="0" y1="100%" x2="100%" y2="0" class="stroke-current stroke-1"></line>
+                                <svg class="sr-simple-product-link__strike"
+                                     aria-hidden="true">
+                                    <line x1="0"
+                                          y1="100%"
+                                          x2="100%"
+                                          y2="0"
+                                          class="sr-simple-product-link__strike-line"></line>
                                 </svg>
                             <?php endif; ?>
                         </span>

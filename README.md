@@ -1,8 +1,8 @@
-# Mageno 2 Simple Product Link — Variant Switcher for Simple Products
+# Magento 2 Simple Product Link — Variant Switcher for Simple Products
 
 A custom Magento 2 module that links independent simple products together and renders an interactive variant switcher on the Product Detail Page (PDP). Unlike Magento's native configurable product approach, every product remains a standalone simple product while the storefront delivers a seamless variation-selection experience.
 
-> **Designed for Hyva-based storefronts** — uses Tailwind CSS utility classes and Alpine.js for frontend interactivity.
+> **Supports Hyvä and Luma-based storefronts** — each theme family has an isolated Magento frontend module.
 
 ---
 
@@ -32,7 +32,7 @@ A custom Magento 2 module that links independent simple products together and re
 - **Multiple variation attributes** per rule (e.g., Color + Size) with drag-and-drop ordering.
 - **Color, image, and text swatches** using Magento's native Swatches module.
 - **Out-of-stock indicators** — diagonal strikethrough + tooltip, respects catalog display setting.
-- **Zero theme modifications** — the variant switcher injects itself after the price block via plugin.
+- **Zero theme modifications** — theme-specific layout XML injects the variant switcher on the PDP.
 - **Group-aware cache invalidation** — rule changes, product group changes, and stock updates automatically purge the correct FPC entries.
 
 ---
@@ -41,7 +41,7 @@ A custom Magento 2 module that links independent simple products together and re
 
 1. Products are grouped by assigning the same value to the `simple_product_group` attribute.
 2. An admin-defined **Link Rule** specifies which variation attributes to display and which products the rule applies to (via catalog-rule conditions).
-3. On the storefront, the module's plugin appends a variant switcher block immediately after the price. Each variant is a clickable link to the sibling product's PDP.
+3. On the storefront, the active theme implementation renders a variant switcher. Each variant is a clickable link to the sibling product's PDP.
 
 ---
 
@@ -51,7 +51,7 @@ A custom Magento 2 module that links independent simple products together and re
 |---------------------|-------------------------------|
 | Magento             | 2.4.x                        |
 | PHP                 | Per Magento 2.4 requirements  |
-| Theme               | Hyva (Tailwind + Alpine.js)   |
+| Theme               | Hyvä or Luma-based theme      |
 | `SR_Base` module    | Must be installed and enabled |
 
 ---
@@ -61,8 +61,8 @@ A custom Magento 2 module that links independent simple products together and re
 ### Via Composer (private repository)
 
 ```bash
-composer require sr/module-simple-product-link
-bin/magento module:enable SR_SimpleProductLink
+composer require studioraz/magento2-simple-product-link
+bin/magento module:enable SR_SimpleProductLink SR_SimpleProductLinkLuma
 bin/magento setup:upgrade
 bin/magento setup:di:compile
 bin/magento cache:flush
@@ -70,11 +70,12 @@ bin/magento cache:flush
 
 ### Manual installation
 
-1. Copy the module to `app/code/SR/SimpleProductLink/`.
-2. Run:
+1. Copy `src/SimpleProductLink/` to `app/code/SR/SimpleProductLink/`.
+2. Copy `src/SimpleProductLinkLuma/` to `app/code/SR/SimpleProductLinkLuma/`.
+3. Run:
 
 ```bash
-bin/magento module:enable SR_SimpleProductLink
+bin/magento module:enable SR_SimpleProductLink SR_SimpleProductLinkLuma
 bin/magento setup:upgrade
 bin/magento setup:di:compile
 bin/magento cache:flush
@@ -119,7 +120,7 @@ Navigate to **Admin → Studio Raz → Simple Product Link → Link Rules** and 
 | Product is not a simple product (configurable, bundle, etc.) | No switcher displayed |
 | No active rule matches the product | No switcher displayed |
 
-When conditions are met, the switcher renders below the price with one row per variation attribute.
+When conditions are met, the switcher renders in the product information area with one row per variation attribute.
 
 ### Swatch Support
 
