@@ -10,7 +10,6 @@ use Magento\Catalog\Model\Product\Attribute\Source\Status;
 use Magento\Catalog\Model\Product\Visibility;
 use Magento\Catalog\Model\ResourceModel\Eav\Attribute as CatalogEavAttribute;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory as ProductCollectionFactory;
-use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Magento\Eav\Model\Config as EavConfig;
 use Magento\Eav\Model\Entity\Attribute\AbstractAttribute;
 use Magento\Framework\App\Config\ScopeConfigInterface;
@@ -33,7 +32,6 @@ class LinkedProducts implements ArgumentInterface
         private readonly ProductCollectionFactory $productCollectionFactory,
         private readonly LinkRuleMatcher $linkRuleMatcher,
         private readonly SwatchHelper $swatchHelper,
-        private readonly StockRegistryInterface $stockRegistry,
         private readonly EavConfig $eavConfig,
         private readonly SwatchMediaHelper $swatchMediaHelper,
         private readonly ScopeConfigInterface $scopeConfig,
@@ -192,7 +190,7 @@ class LinkedProducts implements ArgumentInterface
 
     /**
      * Build an attribute group for a virtual attribute using the pool's value builder.
-     * Options are text-pill style (SWATCH_TYPE_NONE) with the computed string as label.
+     * Options are text-pill style with the computed string as label.
      *
      * @param Product[] $candidates Already filtered for other-axis alignment
      */
@@ -370,7 +368,6 @@ class LinkedProducts implements ArgumentInterface
             ->addAttributeToSelect(array_merge(['name', 'url_key', 'thumbnail'], $selectCodes))
             ->addAttributeToFilter(AddSimpleProductGroupAttribute::ATTRIBUTE_CODE, $groupValue)
             ->addAttributeToFilter('status', Status::STATUS_ENABLED)
-            ->addAttributeToFilter('type_id', 'simple')
             ->setOrder('entity_id', 'ASC');
 
         return $collection->getItems();
@@ -387,7 +384,7 @@ class LinkedProducts implements ArgumentInterface
     private function isProductSalable(Product $product): bool
     {
         try {
-            return $this->stockRegistry->getStockItem($product->getId())->getIsInStock();
+            return (bool)$product->isSalable();
         } catch (\Exception) {
             return false;
         }

@@ -8,12 +8,14 @@ use Magento\Catalog\Model\Product;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use SR\SimpleProductLink\Model\Cache\GroupCacheCleaner;
+use SR\SimpleProductLink\Model\Product\GroupValuesResolver;
 use SR\SimpleProductLink\Setup\Patch\Data\AddSimpleProductGroupAttribute;
 
 class InvalidateCacheOnProductSave implements ObserverInterface
 {
     public function __construct(
         private readonly GroupCacheCleaner $groupCacheCleaner,
+        private readonly GroupValuesResolver $groupValuesResolver,
     ) {}
 
     public function execute(Observer $observer): void
@@ -29,6 +31,15 @@ class InvalidateCacheOnProductSave implements ObserverInterface
             $product->getData($attributeCode),
             $product->getOrigData($attributeCode),
         ];
+
+        $productId = (int)$product->getId();
+        if ($productId > 0) {
+            $groupValues = array_merge(
+                $groupValues,
+                $this->groupValuesResolver->getByProductIds([$productId])
+            );
+        }
+
         if (!$this->hasGroupValue($groupValues)) {
             return;
         }
