@@ -127,46 +127,48 @@ class LinkedProducts implements ArgumentInterface
             $candidates = $linkedProducts;
         }
 
-        // Single pass: collect option IDs and index products by option ID.
+        // Single pass: collect option values and index products by option value.
+        // Most EAV selects store numeric option IDs, but source-backed selects such as
+        // country_of_manufacture store string values (for example, "US" or "DE").
         // If the current product shares an option value with another product, prefer the
         // current product so that `is_current` resolves correctly for that option.
-        $optionIds          = [];
-        $productsByOptionId = [];
+        $optionValues = [];
+        $productsByOptionValue = [];
         foreach ($candidates as $linkedProduct) {
-            $optionId = (int)$linkedProduct->getData($attributeCode);
-            if (!$optionId) {
+            $optionValue = trim((string)$linkedProduct->getData($attributeCode));
+            if ($optionValue === '') {
                 continue;
             }
             $isCurrentProduct = (int)$linkedProduct->getId() === (int)$currentProduct->getId();
-            if (!isset($productsByOptionId[$optionId])) {
-                $optionIds[]                   = $optionId;
-                $productsByOptionId[$optionId] = $linkedProduct;
+            if (!isset($productsByOptionValue[$optionValue])) {
+                $optionValues[] = $optionValue;
+                $productsByOptionValue[$optionValue] = $linkedProduct;
             } elseif ($isCurrentProduct) {
                 // Current product wins: overwrite whichever product was first for this option
-                $productsByOptionId[$optionId] = $linkedProduct;
+                $productsByOptionValue[$optionValue] = $linkedProduct;
             }
         }
 
         $isSwatchAttribute  = $attribute instanceof CatalogEavAttribute
             && $this->swatchHelper->isSwatchAttribute($attribute);
         $swatchData         = $isSwatchAttribute
-            ? $this->swatchHelper->getSwatchesByOptionsId($optionIds)
+            ? $this->swatchHelper->getSwatchesByOptionsId(array_map('intval', $optionValues))
             : [];
 
         // Iterate attribute options in admin sort order
         $options = [];
-        foreach ($this->getAttributeOptionLabels($attribute) as $optionId => $label) {
-            if (!isset($productsByOptionId[$optionId])) {
+        foreach ($this->getAttributeOptionLabels($attribute) as $optionValue => $label) {
+            if (!isset($productsByOptionValue[$optionValue])) {
                 continue;
             }
 
             $option = $this->buildOption(
-                $optionId,
+                $optionValue,
                 $label,
-                $productsByOptionId[$optionId],
+                $productsByOptionValue[$optionValue],
                 $currentProduct,
                 $isSwatchAttribute,
-                $swatchData[$optionId] ?? null,
+                $swatchData[$optionValue] ?? null,
             );
 
             if (!$option['is_salable'] && !$option['is_current'] && !$showOutOfStock) {
@@ -261,7 +263,7 @@ class LinkedProducts implements ArgumentInterface
      * @return array<string,mixed>
      */
     private function buildOption(
-        int $optionId,
+        int|string $optionValue,
         string $label,
         Product $linkedProduct,
         Product $currentProduct,
@@ -276,7 +278,8 @@ class LinkedProducts implements ArgumentInterface
 
         return [
             'product_id'    => (int)$linkedProduct->getId(),
-            'option_id'     => $optionId,
+            // Keep the existing array key for template compatibility; the value can be a string.
+            'option_id'     => $optionValue,
             'label'         => $label,
             'url'           => $linkedProduct->getProductUrl(),
             'is_current'    => (int)$linkedProduct->getId() === (int)$currentProduct->getId(),
@@ -391,13 +394,17 @@ class LinkedProducts implements ArgumentInterface
     }
 
     /**
-     * @return array<int, string> Option labels keyed by option_id, in admin sort order
+     * @return array<int|string, string> Option labels keyed by option value, in admin sort order
      */
     private function getAttributeOptionLabels(AbstractAttribute $attribute): array
     {
         $labels = [];
         foreach ($attribute->getSource()->getAllOptions(false) as $option) {
-            $labels[(int)$option['value']] = (string)$option['label'];
+            $optionValue = trim((string)($option['value'] ?? ''));
+            if ($optionValue === '') {
+                continue;
+            }
+            $labels[$optionValue] = (string)$option['label'];
         }
         return $labels;
     }
