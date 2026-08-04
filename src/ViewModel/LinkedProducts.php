@@ -68,12 +68,32 @@ class LinkedProducts implements ArgumentInterface
             return null;
         }
 
-        // Resolve once — used as a filter condition for every option in every attribute
         $showOutOfStock = $this->isShowOutOfStock();
+        $productValues = $this->buildProductValues($linkedProducts, $attributeCodes);
+        $salability = [];
+        foreach ($linkedProducts as $linkedProduct) {
+            $salability[(int)$linkedProduct->getId()] = $this->isProductSalable($linkedProduct);
+        }
+
+        $axes = [];
+        foreach ($attributeCodes as $attributeCode) {
+            $axis = $this->buildAxis($attributeCode, $product, $linkedProducts, $productValues);
+            if ($axis !== null) {
+                $axes[] = $axis;
+            }
+        }
 
         $result = [];
-        foreach ($attributeCodes as $attributeCode) {
-            $group = $this->buildAttributeGroup($attributeCode, $product, $linkedProducts, $showOutOfStock, $attributeCodes);
+        foreach (array_keys($axes) as $axisIndex) {
+            $group = $this->buildAttributeGroup(
+                $axisIndex,
+                $axes,
+                $product,
+                $linkedProducts,
+                $productValues,
+                $salability,
+                $showOutOfStock,
+            );
             if ($group !== null) {
                 $result[] = $group;
             }
@@ -83,29 +103,124 @@ class LinkedProducts implements ArgumentInterface
     }
 
     /**
-     * Build one attribute group (label + options array), or null if fewer than 2 options resolve.
-     *
+     * @param array<int, array<string, mixed>> $axes
      * @param Product[] $linkedProducts
-     * @param string[]  $allAttributeCodes All variation attribute codes for the rule (used to filter candidates)
+     * @param array<int, array<string, string|null>> $productValues
+     * @param array<int, bool> $salability
      */
     private function buildAttributeGroup(
+        int $axisIndex,
+        array $axes,
+        Product $currentProduct,
+        array $linkedProducts,
+        array $productValues,
+        array $salability,
+        bool $showOutOfStock
+    ): ?array {
+        $axis = $axes[$axisIndex];
+        $attributeCode = $axis['attribute_code'];
+        $currentProductId = (int)$currentProduct->getId();
+        $currentValue = $productValues[$currentProductId][$attributeCode] ?? null;
+        $options = [];
+        foreach ($axis['values'] as $optionValue) {
+            $productsWithValue = array_values(array_filter(
+                $linkedProducts,
+                static fn(Product $linkedProduct): bool =>
+                    ($productValues[(int)$linkedProduct->getId()][$attributeCode] ?? null) === $optionValue
+            ));
+            $salableProductsWithValue = array_values(array_filter(
+                $productsWithValue,
+                static fn(Product $linkedProduct): bool => $salability[(int)$linkedProduct->getId()] ?? false
+            ));
+
+            $isCurrent = $currentValue === $optionValue;
+            $isSalable = $salableProductsWithValue !== [];
+            if (!$isSalable && !$isCurrent && !$showOutOfStock) {
+                continue;
+            }
+
+            $availableCandidates = array_values(array_filter(
+                $salableProductsWithValue,
+                function (Product $candidate) use ($axisIndex, $axes, $currentProductId, $productValues): bool {
+                    for ($prefixIndex = 0; $prefixIndex < $axisIndex; $prefixIndex++) {
+                        $prefixCode = $axes[$prefixIndex]['attribute_code'];
+                        if (($productValues[(int)$candidate->getId()][$prefixCode] ?? null)
+                            !== ($productValues[$currentProductId][$prefixCode] ?? null)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            ));
+            $targetProduct = $this->resolveBestTarget(
+                $availableCandidates,
+                $axisIndex,
+                $axes,
+                $productValues,
+                $currentProduct,
+            );
+            $representativeProduct = $isCurrent
+                ? $currentProduct
+                : ($targetProduct ?? $salableProductsWithValue[0] ?? $productsWithValue[0]);
+
+            $options[] = $this->buildOption(
+                $axis['is_virtual'] ? 0 : $optionValue,
+                $axis['labels'][$optionValue],
+                $representativeProduct,
+                $targetProduct,
+                $isCurrent,
+                $isSalable,
+                $targetProduct !== null,
+                $axis['is_swatch'],
+                $axis['swatch_data'][$optionValue] ?? null,
+            );
+        }
+
+        if (count($options) < 2) {
+            return null;
+        }
+
+        return [
+            'attribute_label'    => $axis['attribute_label'],
+            'attribute_code'     => $attributeCode,
+            'current_product_id' => $currentProductId,
+            'options'            => $options,
+        ];
+    }
+
+    /**
+     * @param Product[] $linkedProducts
+     * @param array<int, array<string, string|null>> $productValues
+     * @return array<string, mixed>|null
+     */
+    private function buildAxis(
         string $attributeCode,
         Product $currentProduct,
         array $linkedProducts,
-        bool $showOutOfStock,
-        array $allAttributeCodes = []
+        array $productValues
     ): ?array {
-        // Delegate virtual attributes to dedicated builder
-        if ($this->virtualAttributePool->has($attributeCode)) {
-            $otherAttributeCodes = array_values(array_filter($allAttributeCodes, fn(string $c) => $c !== $attributeCode));
-            $candidates = $this->filterProductsByOtherAttributes($linkedProducts, $currentProduct, $otherAttributeCodes);
-            // Soft fallback: if cross-axis filtering leaves too few candidates (unique-combo product
-            // sets where no other product shares the current product's value on every other axis),
-            // fall back to the full group so all virtual options can still be displayed.
-            if (count($candidates) < 2) {
-                $candidates = $linkedProducts;
+        $valuesInGroup = [];
+        foreach ($linkedProducts as $linkedProduct) {
+            $value = $productValues[(int)$linkedProduct->getId()][$attributeCode] ?? null;
+            if ($value !== null) {
+                $valuesInGroup[$value] = true;
             }
-            return $this->buildVirtualAttributeGroup($attributeCode, $currentProduct, $candidates, $showOutOfStock);
+        }
+
+        if ($this->virtualAttributePool->has($attributeCode)) {
+            $virtualAttribute = $this->virtualAttributePool->getByCode($attributeCode);
+            $values = array_keys($valuesInGroup);
+            usort($values, 'strnatcasecmp');
+
+            return [
+                'attribute_code' => $attributeCode,
+                'attribute_label' => $virtualAttribute->getFrontendLabel($currentProduct),
+                'values' => $values,
+                'labels' => array_combine($values, $values) ?: [],
+                'is_virtual' => true,
+                'is_swatch' => true,
+                'swatch_data' => [],
+            ];
         }
 
         $attribute = $this->eavConfig->getAttribute(Product::ENTITY, $attributeCode);
@@ -113,145 +228,131 @@ class LinkedProducts implements ArgumentInterface
             return null;
         }
 
-        // For multi-attribute rules, only consider products that share the current product's
-        // values for every OTHER variation attribute. This ensures, e.g., Storage options on a
-        // White product page always link to White products — not to whichever color happens to
-        // have the lowest entity_id.
-        // Soft fallback: if the cross-axis filter leaves fewer than 2 candidates (e.g. unique-combo
-        // product sets), use the full linked product list so options are still displayed.
-        $otherAttributeCodes = array_values(array_filter($allAttributeCodes, fn(string $c) => $c !== $attributeCode));
-        $candidates = $this->filterProductsByOtherAttributes($linkedProducts, $currentProduct, $otherAttributeCodes);
-        if (count($candidates) < 2) {
-            $candidates = $linkedProducts;
-        }
-
-        // Single pass: collect option values and index products by option value.
-        // Most EAV selects store numeric option IDs, but source-backed selects such as
-        // country_of_manufacture store string values (for example, "US" or "DE").
-        // If the current product shares an option value with another product, prefer the
-        // current product so that `is_current` resolves correctly for that option.
-        $optionValues = [];
-        $productsByOptionValue = [];
-        foreach ($candidates as $linkedProduct) {
-            $optionValue = trim((string)$linkedProduct->getData($attributeCode));
-            if ($optionValue === '') {
-                continue;
-            }
-            $isCurrentProduct = (int)$linkedProduct->getId() === (int)$currentProduct->getId();
-            if (!isset($productsByOptionValue[$optionValue])) {
-                $optionValues[] = $optionValue;
-                $productsByOptionValue[$optionValue] = $linkedProduct;
-            } elseif ($isCurrentProduct) {
-                // Current product wins: overwrite whichever product was first for this option
-                $productsByOptionValue[$optionValue] = $linkedProduct;
-            }
-        }
-
-        $isSwatchAttribute  = $attribute instanceof CatalogEavAttribute
-            && $this->swatchHelper->isSwatchAttribute($attribute);
-        $swatchData         = $isSwatchAttribute
-            ? $this->swatchHelper->getSwatchesByOptionsId(array_map('intval', $optionValues))
-            : [];
-
-        // Iterate attribute options in admin sort order
-        $options = [];
+        $values = [];
+        $labels = [];
         foreach ($this->getAttributeOptionLabels($attribute) as $optionValue => $label) {
-            if (!isset($productsByOptionValue[$optionValue])) {
+            $optionValue = (string)$optionValue;
+            if (!isset($valuesInGroup[$optionValue])) {
                 continue;
             }
-
-            $option = $this->buildOption(
-                $optionValue,
-                $label,
-                $productsByOptionValue[$optionValue],
-                $currentProduct,
-                $isSwatchAttribute,
-                $swatchData[$optionValue] ?? null,
-            );
-
-            if (!$option['is_salable'] && !$option['is_current'] && !$showOutOfStock) {
-                continue;
-            }
-
-            $options[] = $option;
+            $values[] = $optionValue;
+            $labels[$optionValue] = $label;
         }
 
-        if (count($options) < 2) {
-            return null;
-        }
+        $isSwatchAttribute = $attribute instanceof CatalogEavAttribute
+            && $this->swatchHelper->isSwatchAttribute($attribute);
 
         return [
-            'attribute_label'    => $attribute->getStoreLabel() ?: $attribute->getFrontendLabel(),
-            'attribute_code'     => $attributeCode,
-            'current_product_id' => (int)$currentProduct->getId(),
-            'options'            => $options,
+            'attribute_code' => $attributeCode,
+            'attribute_label' => $attribute->getStoreLabel() ?: $attribute->getFrontendLabel(),
+            'values' => $values,
+            'labels' => $labels,
+            'is_virtual' => false,
+            'is_swatch' => $isSwatchAttribute,
+            'swatch_data' => $isSwatchAttribute
+                ? $this->swatchHelper->getSwatchesByOptionsId(array_map('intval', $values))
+                : [],
         ];
     }
 
     /**
-     * Build an attribute group for a virtual attribute using the pool's value builder.
-     * Options are text-pill style with the computed string as label.
-     *
-     * @param Product[] $candidates Already filtered for other-axis alignment
+     * @param Product[] $linkedProducts
+     * @param string[] $attributeCodes
+     * @return array<int, array<string, string|null>>
      */
-    private function buildVirtualAttributeGroup(
-        string $attributeCode,
-        Product $currentProduct,
+    private function buildProductValues(array $linkedProducts, array $attributeCodes): array
+    {
+        $productValues = [];
+        foreach ($linkedProducts as $linkedProduct) {
+            $productId = (int)$linkedProduct->getId();
+            foreach ($attributeCodes as $attributeCode) {
+                if ($this->virtualAttributePool->has($attributeCode)) {
+                    $rawValue = $this->virtualAttributePool
+                        ->getByCode($attributeCode)
+                        ->getValueForProduct($linkedProduct);
+                } else {
+                    $rawValue = $linkedProduct->getData($attributeCode);
+                }
+
+                $value = trim((string)$rawValue);
+                $productValues[$productId][$attributeCode] = $value !== '' ? $value : null;
+            }
+        }
+        return $productValues;
+    }
+
+    /**
+     * @param Product[] $candidates
+     * @param array<int, array<string, mixed>> $axes
+     * @param array<int, array<string, string|null>> $productValues
+     */
+    private function resolveBestTarget(
         array $candidates,
-        bool $showOutOfStock
-    ): ?array {
-        $virtualAttribute = $this->virtualAttributePool->getByCode($attributeCode);
-        if ($virtualAttribute === null) {
+        int $axisIndex,
+        array $axes,
+        array $productValues,
+        Product $currentProduct
+    ): ?Product {
+        if ($candidates === []) {
             return null;
         }
 
-        // Collect unique non-null values; index by value so we keep only the first product per value
-        $productsByValue = [];
-        foreach ($candidates as $candidate) {
-            $value = $virtualAttribute->getValueForProduct($candidate);
-            if ($value === null || $value === '') {
-                continue;
-            }
-            if (!isset($productsByValue[$value])) {
-                $productsByValue[$value] = $candidate;
-            }
-        }
-
-        if (count($productsByValue) < 2) {
-            return null;
-        }
-
-        // Natural-sort the computed values so "3 kg" < "10 kg" < "20 kg"
-        uksort($productsByValue, 'strnatcasecmp');
-
-        $options = [];
-        foreach ($productsByValue as $value => $linkedProduct) {
-            $option = $this->buildOption(
-                0,    // sentinel — virtual options have no real EAV option ID
-                $value,
-                $linkedProduct,
-                $currentProduct,
-                true, // treat as textual swatch so the template renders a text pill, not a thumbnail
-                null, // no swatch row → falls through to SWATCH_TYPE_TEXTUAL
-            );
-
-            if (!$option['is_salable'] && !$option['is_current'] && !$showOutOfStock) {
-                continue;
+        $currentProductId = (int)$currentProduct->getId();
+        usort($candidates, function (Product $left, Product $right) use (
+            $axisIndex,
+            $axes,
+            $productValues,
+            $currentProductId
+        ): int {
+            for ($lowerIndex = $axisIndex + 1, $axisCount = count($axes);
+                 $lowerIndex < $axisCount;
+                 $lowerIndex++) {
+                $axis = $axes[$lowerIndex];
+                $attributeCode = $axis['attribute_code'];
+                $currentValue = $productValues[$currentProductId][$attributeCode] ?? null;
+                $leftDistance = $this->getOptionDistance(
+                    $axis['values'],
+                    $currentValue,
+                    $productValues[(int)$left->getId()][$attributeCode] ?? null,
+                );
+                $rightDistance = $this->getOptionDistance(
+                    $axis['values'],
+                    $currentValue,
+                    $productValues[(int)$right->getId()][$attributeCode] ?? null,
+                );
+                if ($leftDistance !== $rightDistance) {
+                    return $leftDistance <=> $rightDistance;
+                }
             }
 
-            $options[] = $option;
+            $leftIsCurrent = (int)$left->getId() === $currentProductId;
+            $rightIsCurrent = (int)$right->getId() === $currentProductId;
+            if ($leftIsCurrent !== $rightIsCurrent) {
+                return $leftIsCurrent ? -1 : 1;
+            }
+
+            return (int)$left->getId() <=> (int)$right->getId();
+        });
+
+        return $candidates[0];
+    }
+
+    /**
+     * @param string[] $orderedValues
+     */
+    private function getOptionDistance(array $orderedValues, ?string $currentValue, ?string $candidateValue): int
+    {
+        if ($currentValue === $candidateValue) {
+            return 0;
         }
 
-        if (count($options) < 2) {
-            return null;
+        $currentIndex = array_search($currentValue, $orderedValues, true);
+        $candidateIndex = array_search($candidateValue, $orderedValues, true);
+        if ($currentIndex === false || $candidateIndex === false) {
+            return PHP_INT_MAX;
         }
 
-        return [
-            'attribute_label'    => $virtualAttribute->getFrontendLabel($currentProduct),
-            'attribute_code'     => $attributeCode,
-            'current_product_id' => (int)$currentProduct->getId(),
-            'options'            => $options,
-        ];
+        return abs($currentIndex - $candidateIndex);
     }
 
     /**
@@ -263,8 +364,11 @@ class LinkedProducts implements ArgumentInterface
     private function buildOption(
         int|string $optionValue,
         string $label,
-        Product $linkedProduct,
-        Product $currentProduct,
+        Product $representativeProduct,
+        ?Product $targetProduct,
+        bool $isCurrent,
+        bool $isSalable,
+        bool $isAvailable,
         bool $isSwatchAttribute,
         ?array $swatch,
     ): array {
@@ -275,56 +379,21 @@ class LinkedProducts implements ArgumentInterface
         };
 
         return [
-            'product_id'    => (int)$linkedProduct->getId(),
+            'product_id'    => (int)($targetProduct ?? $representativeProduct)->getId(),
             // Keep the existing array key for template compatibility; the value can be a string.
             'option_id'     => $optionValue,
             'label'         => $label,
-            'url'           => $linkedProduct->getProductUrl(),
-            'is_current'    => (int)$linkedProduct->getId() === (int)$currentProduct->getId(),
-            'is_salable'    => $this->isProductSalable($linkedProduct),
+            'url'           => $targetProduct?->getProductUrl() ?? '',
+            'is_current'    => $isCurrent,
+            'is_salable'    => $isSalable,
+            'is_available'  => $isAvailable,
             'swatch_type'   => $swatchType,
             'swatch_value'  => $swatch['value'] ?? '',
             // Resolved only for dropdown (non-swatch) attributes; empty string otherwise
             'product_image' => !$isSwatchAttribute
-                ? $this->imageHelper->init($linkedProduct, 'product_thumbnail_image')->getUrl()
+                ? $this->imageHelper->init($representativeProduct, 'product_thumbnail_image')->getUrl()
                 : '',
         ];
-    }
-
-
-    /**
-     * Return only the products whose values for every code in $otherAttributeCodes
-     * match the corresponding value on $currentProduct.
-     *
-     * When $otherAttributeCodes is empty (single-attribute rule) the full list is returned
-     * unchanged, preserving backward compatibility.
-     *
-     * @param  Product[] $products
-     * @param  string[]  $otherAttributeCodes
-     * @return Product[]
-     */
-    private function filterProductsByOtherAttributes(
-        array $products,
-        Product $currentProduct,
-        array $otherAttributeCodes
-    ): array {
-        if (empty($otherAttributeCodes)) {
-            return $products;
-        }
-
-        return array_values(array_filter($products, function (Product $product) use ($currentProduct, $otherAttributeCodes): bool {
-            foreach ($otherAttributeCodes as $code) {
-                if ($this->virtualAttributePool->has($code)) {
-                    $virtual = $this->virtualAttributePool->getByCode($code);
-                    if ($virtual->getValueForProduct($product) !== $virtual->getValueForProduct($currentProduct)) {
-                        return false;
-                    }
-                } elseif ($product->getData($code) !== $currentProduct->getData($code)) {
-                    return false;
-                }
-            }
-            return true;
-        }));
     }
 
     /**
