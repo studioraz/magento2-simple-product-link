@@ -53,6 +53,7 @@ if (!$linkData) {
                     <?php
                     $isCurrent  = $option['is_current'];
                     $isSalable  = $option['is_salable'];
+                    $isAvailable = $option['is_available'];
                     $swatchType = (int)$option['swatch_type'];
                     $swatchValue = $option['swatch_value'];
                     $label    = $escaper->escapeHtml($option['label']);
@@ -75,7 +76,8 @@ if (!$linkData) {
                             $isCurrent && $isTextSwatch  => 'border-primary ring-2 ring-primary/50 text-primary',
                             $isCurrent                   => 'border-primary ring-2 ring-primary/50',
                             !$isSalable                  => 'border-container-darker opacity-50 cursor-not-allowed',
-                            default                      => 'border-container-darker hover:border-primary cursor-pointer',
+                            $isAvailable                 => 'border-container-darker hover:border-primary cursor-pointer',
+                            default                      => 'border-container-darker',
                         },
                     ];
                     $classList = implode(' ', $classes);
@@ -97,7 +99,7 @@ if (!$linkData) {
                         : $label;
                     ?>
 
-                    <?php if ($isSalable && !$isCurrent): ?>
+                    <?php if ($isAvailable && !$isCurrent): ?>
                         <a href="<?= $url ?>"
                            class="<?= $classList ?>"
                            role="radio"
@@ -120,6 +122,7 @@ if (!$linkData) {
                         <span class="<?= $classList ?>"
                               role="radio"
                               aria-checked="<?= $isCurrent ? 'true' : 'false' ?>"
+                              <?php if (!$isAvailable && !$isCurrent): ?>aria-disabled="true"<?php endif; ?>
                               aria-label="<?= $label ?>"
                               title="<?= $titleText ?>"
                               <?php if ($swatchStyle): ?>style="<?= $swatchStyle ?>"<?php endif; ?>
@@ -134,7 +137,7 @@ if (!$linkData) {
                                 <span class="pointer-events-none"><?= $label ?></span>
                             <?php endif; ?>
 
-                            <?php if (!$isSalable): ?>
+                            <?php if (!$isAvailable): ?>
                                 <svg class="absolute inset-0 w-full h-full text-gray-500"
                                      aria-hidden="true">
                                     <line x1="0"

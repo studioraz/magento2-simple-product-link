@@ -7,9 +7,11 @@ namespace SR\SimpleProductLink\Test\Unit\ViewModel;
 use Magento\Catalog\Helper\Image as ImageHelper;
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\Product\Visibility;
+use Magento\Catalog\Model\ResourceModel\Eav\Attribute as CatalogEavAttribute;
 use Magento\Catalog\Model\ResourceModel\Product\Collection as ProductCollection;
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
 use Magento\Eav\Model\Config as EavConfig;
+use Magento\Eav\Model\Entity\Attribute\Source\AbstractSource;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\StoreManagerInterface;
@@ -31,8 +33,13 @@ use SR\SimpleProductLink\ViewModel\LinkedProducts;
  */
 class LinkedProductsTest extends TestCase
 {
-    private function buildViewModel(Pool $pool, array $groupProducts, LinkRule $rule): LinkedProducts
-    {
+    private function buildViewModel(
+        Pool $pool,
+        array $groupProducts,
+        LinkRule $rule,
+        ?EavConfig $eavConfig = null,
+        bool $showOutOfStock = true,
+    ): LinkedProducts {
         $store = $this->createMock(Store::class);
         $store->method('getId')->willReturn(1);
         $store->method('getWebsiteId')->willReturn(1);
@@ -69,13 +76,13 @@ class LinkedProductsTest extends TestCase
         $imageHelper->method('getUrl')->willReturn('http://example.com/thumb.jpg');
 
         $scopeConfig = $this->createMock(ScopeConfigInterface::class);
-        $scopeConfig->method('isSetFlag')->willReturn(true); // show out of stock
+        $scopeConfig->method('isSetFlag')->willReturn($showOutOfStock);
 
         return new LinkedProducts(
             $collectionFactory,
             $matcherMock,
             $this->createMock(SwatchHelper::class),
-            $this->createMock(EavConfig::class),
+            $eavConfig ?? $this->createMock(EavConfig::class),
             $this->createMock(SwatchMediaHelper::class),
             $scopeConfig,
             $imageHelper,
@@ -108,6 +115,96 @@ class LinkedProductsTest extends TestCase
         $rule = $this->createMock(LinkRule::class);
         $rule->method('getVariationAttributeCodes')->willReturn([['attribute_code' => $attributeCode]]);
         return $rule;
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function buildMatrixProduct(
+        int $id,
+        string $groupValue,
+        array $values,
+        bool $isSalable = true,
+        string $typeId = 'simple',
+    ): Product {
+        $product = $this->createMock(Product::class);
+        $product->method('getId')->willReturn($id);
+        $product->method('getTypeId')->willReturn($typeId);
+        $product->method('isSalable')->willReturn($isSalable);
+        $product->method('getData')->willReturnCallback(
+            static function (string $key) use ($groupValue, $values): mixed {
+                if ($key === AddSimpleProductGroupAttribute::ATTRIBUTE_CODE) {
+                    return $groupValue;
+                }
+                return $values[$key] ?? null;
+            }
+        );
+        $product->method('getProductUrl')->willReturn("http://example.com/product-$id");
+        return $product;
+    }
+
+    /**
+     * @param string[] $attributeCodes
+     */
+    private function buildMatrixRule(array $attributeCodes): LinkRule
+    {
+        $rule = $this->createMock(LinkRule::class);
+        $rule->method('getVariationAttributeCodes')->willReturn(array_map(
+            static fn(string $attributeCode): array => ['attribute_code' => $attributeCode],
+            $attributeCodes,
+        ));
+        return $rule;
+    }
+
+    /**
+     * @param Product[] $products
+     */
+    private function buildHierarchyViewModel(array $products, bool $showOutOfStock = true): LinkedProducts
+    {
+        $weight = $this->createMock(VirtualAttributeInterface::class);
+        $weight->method('getAttributeCode')->willReturn('weight');
+        $weight->method('getFrontendLabel')->willReturn('Weight');
+        $weight->method('getDependsOnAttributeCodes')->willReturn(['weight']);
+        $weight->method('getValueForProduct')->willReturnCallback(
+            static fn(Product $product): ?string => $product->getData('weight')
+        );
+
+        $flavorSource = $this->createMock(AbstractSource::class);
+        $flavorSource->method('getAllOptions')->willReturn([
+            ['value' => '10', 'label' => 'Mix'],
+            ['value' => '20', 'label' => 'Chicken'],
+            ['value' => '30', 'label' => 'Fish'],
+            ['value' => '40', 'label' => 'Grill'],
+        ]);
+
+        $flavor = $this->createMock(CatalogEavAttribute::class);
+        $flavor->method('getAttributeId')->willReturn(160);
+        $flavor->method('getStoreLabel')->willReturn('Flavor');
+        $flavor->method('getSource')->willReturn($flavorSource);
+
+        $eavConfig = $this->createMock(EavConfig::class);
+        $eavConfig->method('getAttribute')->willReturn($flavor);
+
+        return $this->buildViewModel(
+            new Pool([$weight]),
+            $products,
+            $this->buildMatrixRule(['weight', 'flavor']),
+            $eavConfig,
+            $showOutOfStock,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $group
+     * @return array<string, array<string, mixed>>
+     */
+    private function indexOptionsByLabel(array $group): array
+    {
+        $indexed = [];
+        foreach ($group['options'] as $option) {
+            $indexed[$option['label']] = $option;
+        }
+        return $indexed;
     }
 
     /**
@@ -280,5 +377,96 @@ class LinkedProductsTest extends TestCase
         $this->assertNotNull($data);
         $labels = array_column($data[0]['options'], 'label');
         $this->assertSame(['3 kg', '10 kg', '20 kg'], $labels);
+    }
+
+    public function testHierarchyKeepsAllOptionsVisibleAndResolvesNearestLowerValues(): void
+    {
+        $products = [
+            $this->buildMatrixProduct(1, 'group1', ['weight' => '1.5 kg', 'flavor' => '10']),
+            $this->buildMatrixProduct(2, 'group1', ['weight' => '1.5 kg', 'flavor' => '20']),
+            $this->buildMatrixProduct(3, 'group1', ['weight' => '2.85 kg', 'flavor' => '10']),
+            $this->buildMatrixProduct(4, 'group1', ['weight' => '2.85 kg', 'flavor' => '20']),
+            $this->buildMatrixProduct(5, 'group1', ['weight' => '2.85 kg', 'flavor' => '30']),
+            $this->buildMatrixProduct(6, 'group1', ['weight' => '2.85 kg', 'flavor' => '40']),
+            $this->buildMatrixProduct(7, 'group1', ['weight' => '15 kg', 'flavor' => '10']),
+            // Reverse duplicate order to prove the final tie-break uses entity_id, not collection order.
+            $this->buildMatrixProduct(9, 'group1', ['weight' => '15 kg', 'flavor' => '20']),
+            $this->buildMatrixProduct(8, 'group1', ['weight' => '15 kg', 'flavor' => '20']),
+        ];
+        $viewModel = $this->buildHierarchyViewModel($products);
+
+        $fishData = $viewModel->getLinkedProductData($products[4]);
+        $chickenData = $viewModel->getLinkedProductData($products[1]);
+
+        $this->assertNotNull($fishData);
+        $this->assertNotNull($chickenData);
+        $this->assertSame(
+            ['1.5 kg', '2.85 kg', '15 kg'],
+            array_column($fishData[0]['options'], 'label')
+        );
+        $this->assertSame(
+            array_column($fishData[0]['options'], 'label'),
+            array_column($chickenData[0]['options'], 'label')
+        );
+        $this->assertSame(
+            ['Mix', 'Chicken', 'Fish', 'Grill'],
+            array_column($fishData[1]['options'], 'label')
+        );
+        $this->assertSame(
+            array_column($fishData[1]['options'], 'label'),
+            array_column($chickenData[1]['options'], 'label')
+        );
+
+        $fishWeightOptions = $this->indexOptionsByLabel($fishData[0]);
+        $this->assertSame('http://example.com/product-2', $fishWeightOptions['1.5 kg']['url']);
+        $this->assertTrue($fishWeightOptions['1.5 kg']['is_available']);
+
+        $chickenFlavorOptions = $this->indexOptionsByLabel($chickenData[1]);
+        $this->assertTrue($chickenFlavorOptions['Mix']['is_available']);
+        $this->assertTrue($chickenFlavorOptions['Chicken']['is_available']);
+        $this->assertFalse($chickenFlavorOptions['Fish']['is_available']);
+        $this->assertFalse($chickenFlavorOptions['Grill']['is_available']);
+        $this->assertSame('', $chickenFlavorOptions['Fish']['url']);
+        $this->assertTrue($chickenFlavorOptions['Fish']['is_salable']);
+
+        $grillData = $viewModel->getLinkedProductData($products[5]);
+        $this->assertNotNull($grillData);
+        $grillWeightOptions = $this->indexOptionsByLabel($grillData[0]);
+        $this->assertSame('http://example.com/product-8', $grillWeightOptions['15 kg']['url']);
+    }
+
+    public function testShowOutOfStockRemainsSeparateFromHierarchyAvailability(): void
+    {
+        $products = [
+            $this->buildMatrixProduct(1, 'group1', ['weight' => '1.5 kg', 'flavor' => '10']),
+            $this->buildMatrixProduct(2, 'group1', ['weight' => '1.5 kg', 'flavor' => '20']),
+            $this->buildMatrixProduct(3, 'group1', ['weight' => '2.85 kg', 'flavor' => '30']),
+            $this->buildMatrixProduct(4, 'group1', ['weight' => '20 kg', 'flavor' => '30'], false),
+        ];
+
+        $hiddenOutOfStockData = $this->buildHierarchyViewModel($products, false)
+            ->getLinkedProductData($products[1]);
+        $visibleOutOfStockData = $this->buildHierarchyViewModel($products, true)
+            ->getLinkedProductData($products[1]);
+
+        $this->assertNotNull($hiddenOutOfStockData);
+        $this->assertNotNull($visibleOutOfStockData);
+        $this->assertSame(
+            ['1.5 kg', '2.85 kg'],
+            array_column($hiddenOutOfStockData[0]['options'], 'label')
+        );
+        $this->assertSame(
+            ['1.5 kg', '2.85 kg', '20 kg'],
+            array_column($visibleOutOfStockData[0]['options'], 'label')
+        );
+
+        $visibleWeightOptions = $this->indexOptionsByLabel($visibleOutOfStockData[0]);
+        $this->assertFalse($visibleWeightOptions['20 kg']['is_salable']);
+        $this->assertFalse($visibleWeightOptions['20 kg']['is_available']);
+        $this->assertSame('', $visibleWeightOptions['20 kg']['url']);
+
+        $hiddenFlavorOptions = $this->indexOptionsByLabel($hiddenOutOfStockData[1]);
+        $this->assertTrue($hiddenFlavorOptions['Fish']['is_salable']);
+        $this->assertFalse($hiddenFlavorOptions['Fish']['is_available']);
     }
 }
