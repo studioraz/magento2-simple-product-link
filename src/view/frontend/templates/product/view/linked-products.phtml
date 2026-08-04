@@ -46,7 +46,9 @@ if (!$linkData) {
                 <?= $attributeLabel ?>:
                 <span class="font-normal"><?= $currentOptionLabel ?></span>
             </p>
-            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="<?= $attributeLabel ?>">
+            <div class="flex flex-wrap gap-2"
+                 role="radiogroup"
+                 aria-label="<?= $attributeLabel ?>">
                 <?php foreach ($options as $option): ?>
                     <?php
                     $isCurrent  = $option['is_current'];
@@ -55,8 +57,6 @@ if (!$linkData) {
                     $swatchValue = $option['swatch_value'];
                     $label    = $escaper->escapeHtml($option['label']);
                     $url      = $escaper->escapeUrl($option['url']);
-                    $optionId = (int)$option['option_id'];
-
                     $isColorSwatch    = $swatchType === Swatch::SWATCH_TYPE_VISUAL_COLOR;
                     $isImageSwatch    = $swatchType === Swatch::SWATCH_TYPE_VISUAL_IMAGE;
                     $isDropdownSwatch = $swatchType === LinkedProductsViewModel::SWATCH_TYPE_NONE;
@@ -135,8 +135,13 @@ if (!$linkData) {
                             <?php endif; ?>
 
                             <?php if (!$isSalable): ?>
-                                <svg class="absolute inset-0 w-full h-full text-gray-500" aria-hidden="true">
-                                    <line x1="0" y1="100%" x2="100%" y2="0" class="stroke-current stroke-1"></line>
+                                <svg class="absolute inset-0 w-full h-full text-gray-500"
+                                     aria-hidden="true">
+                                    <line x1="0"
+                                          y1="100%"
+                                          x2="100%"
+                                          y2="0"
+                                          class="stroke-current stroke-1"></line>
                                 </svg>
                             <?php endif; ?>
                         </span>

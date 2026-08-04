@@ -1,6 +1,6 @@
 {
     "name": "studioraz/magento2-simple-product-link",
-    "description": "Links simple products together and renders their variations on the PDP",
+    "description": "Links independent Magento products together and renders their variations on the PDP",
     "type": "magento2-module",
     "license": "MIT",
     "autoload": {
@@ -25,4 +25,3 @@
         "phpunit/phpunit": "^11.0"
     }
 }
-

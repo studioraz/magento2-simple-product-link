@@ -6,6 +6,7 @@ namespace SR\SimpleProductLink\Model\Product;
 
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\ResourceModel\Product as ProductResource;
+use Magento\Catalog\Model\ResourceModel\Product\Relation as ProductRelation;
 use Magento\Eav\Model\Config as EavConfig;
 use Magento\Framework\App\ResourceConnection;
 use SR\SimpleProductLink\Setup\Patch\Data\AddSimpleProductGroupAttribute;
@@ -19,6 +20,7 @@ class GroupValuesResolver
         private readonly ResourceConnection $resourceConnection,
         private readonly ProductResource $productResource,
         private readonly EavConfig $eavConfig,
+        private readonly ProductRelation $productRelation,
     ) {}
 
     /**
@@ -31,6 +33,8 @@ class GroupValuesResolver
         if (!$productIds) {
             return [];
         }
+
+        $productIds = $this->includeParentProductIds($productIds);
 
         $attribute = $this->eavConfig->getAttribute(
             Product::ENTITY,
@@ -66,5 +70,27 @@ class GroupValuesResolver
         }
 
         return array_keys($values);
+    }
+
+    /**
+     * @param int[] $productIds
+     * @return int[]
+     */
+    private function includeParentProductIds(array $productIds): array
+    {
+        $affectedProductIds = array_fill_keys($productIds, true);
+
+        foreach (array_chunk($productIds, self::BATCH_SIZE) as $batchIds) {
+            foreach ($this->productRelation->getRelationsByChildren($batchIds) as $parentIds) {
+                foreach ($parentIds as $parentId) {
+                    $parentId = (int)$parentId;
+                    if ($parentId > 0) {
+                        $affectedProductIds[$parentId] = true;
+                    }
+                }
+            }
+        }
+
+        return array_map('intval', array_keys($affectedProductIds));
     }
 }

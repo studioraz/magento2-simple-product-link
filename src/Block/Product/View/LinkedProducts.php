@@ -31,7 +31,7 @@ class LinkedProducts extends Template implements IdentityInterface
     public function getIdentities(): array
     {
         $product = $this->getProduct();
-        if (!$product || $product->getTypeId() !== 'simple') {
+        if (!$product) {
             return [];
         }
 
